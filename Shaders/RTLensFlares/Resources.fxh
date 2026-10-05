@@ -1,0 +1,40 @@
+#pragma once
+namespace RTL {
+#define RTL_TEXTURE(NAME,W,H) \
+ texture2D NAME { Width=W; Height=H; Format=RGBA32F; }; \
+ sampler2D NAME##S { Texture=NAME; MinFilter=POINT; MagFilter=POINT; MipFilter=POINT; }; \
+ storage2D NAME##U { Texture=NAME; };
+RTL_TEXTURE(EntranceBounds,_RTL_GHOSTS,RTL_ANGLE_BINS)
+RTL_TEXTURE(SensorBounds,_RTL_GHOSTS,RTL_ANGLE_BINS)
+RTL_TEXTURE(BundleEnergy,_RTL_GHOSTS,RTL_ANGLE_BINS)
+RTL_TEXTURE(GhostCDF,_RTL_GHOSTS,RTL_ANGLE_BINS)
+RTL_TEXTURE(GhostTotal,1,RTL_ANGLE_BINS)
+RTL_TEXTURE(PixelCDF,(_RTL_TX*16),(_RTL_TY*16))
+RTL_TEXTURE(TileRaw,_RTL_TX,_RTL_TY)
+RTL_TEXTURE(LightData,_RTL_TX,_RTL_TY)
+RTL_TEXTURE(LightColour,_RTL_TX,_RTL_TY)
+RTL_TEXTURE(TileCDF,_RTL_TX,_RTL_TY)
+RTL_TEXTURE(BlockSum,_RTL_BLOCKS,1)
+RTL_TEXTURE(BlockCDF,_RTL_BLOCKS,1)
+RTL_TEXTURE(SourceMeta,2,1)
+RTL_TEXTURE(SourcePrevious,2,1)
+RTL_TEXTURE(ConfigPrevious,12,1)
+RTL_TEXTURE(Cache,1,1)
+RTL_TEXTURE(HistoryState,1,1)
+RTL_TEXTURE(HistoryNext,1,1)
+RTL_TEXTURE(FlarePrevious,_RTL_W,_RTL_H)
+RTL_TEXTURE(FlareCurrent,_RTL_W,_RTL_H)
+sampler2D FlareLinearS { Texture=FlareCurrent; MinFilter=LINEAR; MagFilter=LINEAR; MipFilter=POINT; AddressU=CLAMP; AddressV=CLAMP; };
+#undef RTL_TEXTURE
+#define RTL_ATOMIC(NAME) \
+ texture2D NAME { Width=_RTL_W; Height=_RTL_H; Format=R32I; }; \
+ sampler2D<int> NAME##S { Texture=NAME; MinFilter=POINT; MagFilter=POINT; MipFilter=POINT; }; \
+ storage2D<int> NAME##U { Texture=NAME; };
+RTL_ATOMIC(AccumR)
+RTL_ATOMIC(AccumG)
+RTL_ATOMIC(AccumB)
+#undef RTL_ATOMIC
+texture2D Counters { Width=8; Height=1; Format=R32I; };
+sampler2D<int> CountersS { Texture=Counters; MinFilter=POINT; MagFilter=POINT; MipFilter=POINT; };
+storage2D<int> CountersU { Texture=Counters; };
+}
