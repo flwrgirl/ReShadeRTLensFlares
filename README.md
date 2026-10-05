@@ -10,4 +10,6 @@ parameterised ai slop generated reshade shader for realistic lens flares
 #### features coming soon maybe
 - more lenses
 
+[based on this paper](https://dl.acm.org/doi/10.1145/2010324.1965003)
+
 #### support human creation, free palestine
