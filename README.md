@@ -5,6 +5,8 @@ parameterised ai slop generated reshade shader for realistic lens flares
 
 [version with only the fft bloom and no lens tracing](https://github.com/flwrgirl/ReShadeFFTBloom)
 
+# this is not intended to be realtime !!!!
+
 ![SpaceEngine + Forza Horizon 6 demo photos](https://files.catbox.moe/tg0qml.png)
 
 #### features coming soon maybe
