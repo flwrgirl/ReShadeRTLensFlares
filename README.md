@@ -7,7 +7,7 @@ parameterised ai slop generated reshade shader for realistic lens flares
 
 # this is not intended to be realtime !!!!
 
-![SpaceEngine + Forza Horizon 6 demo photos](https://files.catbox.moe/tg0qml.png)
+![SpaceEngine + Forza Horizon 6 demo photos](https://files.catbox.moe/cly7ff.png)
 
 #### features coming soon maybe
 - more lenses
