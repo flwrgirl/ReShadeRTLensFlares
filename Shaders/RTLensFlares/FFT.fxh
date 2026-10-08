@@ -388,16 +388,17 @@ uint BitReverse(uint x,uint n){uint r=0;for(uint b=n;b>1;b>>=1){r=(r<<1)|(x&1);x
 float2 Rotate(float2 p,float t){float s=sin(t),c=cos(t);return float2(c*p.x-s*p.y,s*p.x+c*p.y);}
 // FXC's atan2(0,0) is undefined; guard the input before evaluating it.
 float PolarAngle(float2 p){return atan2(p.y,any(p!=0)?p.x:1.0);}
+float LinkedAspect(){float2 axes=RTL::FocalAxes(LensIndex);float squeeze=LinkFFTAnamorphic && RTL::IsAnamorphic(LensIndex)?abs(axes.y/axes.x):1;return ApertureAspect/squeeze;}
 float LinkedRadius(){return ApertureRadius*(LinkFFTIris?FFTIrisReference/(FNumber==0?RTL::PupilInfo(LensIndex).z:FNumber):1);}
 float Lum(float3 v){return dot(v,float3(0.2126,0.7152,0.0722));}
 float3 Saturation(float3 v,float s){return max(lerp(Lum(v).xxx,v,s),0);}
 bool Dirty(){return tex2Dfetch(CacheStatusS,int2(0,0)).x>0.5;}
-bool Empty(){return !BloomEnabled || (tex2Dfetch(SourceStatsS,int2(0,0)).y<=0.00000001 && !(TestLight && GhostDiffraction!=0));}
+bool Empty(){return !BloomEnabled || (tex2Dfetch(SourceStatsS,int2(0,0)).y<=0.00000001 && !(TestLight && FFTAfterGhosts && GhostDiffraction!=0));}
 
 float4 OpticalParameters(int i){float4 v=0;switch(i){
 case 0:v=float4(BladeCount,BladeRotation,BladeRoundness,CornerRounding);break;
 case 1:v=float4(BladeNoiseAmount,BladeNoiseFrequency,BladeNoiseRoughness,BladeNoiseSeed);break;
-case 2:v=float4(LinkedRadius(),ApertureAspect,EdgeSoftness,Obstruction);break;
+case 2:v=float4(LinkedRadius(),LinkedAspect(),EdgeSoftness,Obstruction);break;
 case 3:v=float4(StrutCount,StrutWidth,StrutRotation,CatEye);break;
 case 4:v=float4(CatEyeAngle,UseCustomAperture,CustomCombine,CustomChannel);break;
 case 5:v=float4(CustomIntensity,CustomInvert,CustomScale.x,CustomScale.y);break;
@@ -525,7 +526,7 @@ float ImperfectTransmission(float2 q){
  return saturate(transmission);
 }
 float4 PupilModel(float2 p){
- p/=float2(sqrt(max(ApertureAspect,0.0001)),rsqrt(max(ApertureAspect,0.0001)));
+ p/=float2(sqrt(max(LinkedAspect(),0.0001)),rsqrt(max(LinkedAspect(),0.0001)));
  float r=length(p)/max(LinkedRadius(),0.0001),angle=PolarAngle(p);
  float sector=2*PI/max(BladeCount,3);
  float local=frac((angle-radians(BladeRotation))/sector+0.5)*sector-sector*0.5;
@@ -1323,7 +1324,7 @@ float2 SourceRead(int2 p,uint channel){
    float2 lightPixel=tex2Dfetch(RTL::LightDataS,tile).xy*float2(BUFFER_WIDTH,BUFFER_HEIGHT)/V2_DIV;
    value=all(q==int2(lightPixel))?tex2Dfetch(RTL::LightColourS,tile)[channel]:0;
   }
-  if(GhostDiffraction!=0){
+  if(FFTAfterGhosts && GhostDiffraction!=0){
    float2 uv=(float2(q)+0.5)*V2_DIV/float2(BUFFER_WIDTH,BUFFER_HEIGHT);
    float2 fuv=uv*float2(BUFFER_WIDTH,BUFFER_HEIGHT)/(float2(_RTL_W,_RTL_H)*RTL_RENDER_DIVISOR);
    value+=tex2Dlod(RTL::FlareLinearS,float4(fuv,0,0))[channel]*GhostDiffraction;

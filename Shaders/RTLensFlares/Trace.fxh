@@ -28,7 +28,7 @@ void Splat(float2 position,float3 flux,uint seed){
   if(wx*wy>0)Accumulate(int2(x,y),flux*(wx*wy/(sum.x*sum.y)),seed^Hash(uint(x)*1597334677u^uint(y)*3812015801u));
  }
 }
-[numthreads(64,1,1)]void CS_Rays(uint3 id:SV_DispatchThreadID){
+void Rays(uint3 id,bool advanced,bool barrel){
  if(id.x>=RTL_TRACE_WORKERS)return;
  if(tex2Dfetch(SourceMetaS,int2(0,0)).x<=0 || SpectralSamples<=0 || RayBudget<=0)return;
  float3 spectral=tex2Dfetch(SourceMetaS,int2(1,0)).rgb;
@@ -45,6 +45,11 @@ void Splat(float2 position,float3 flux,uint seed){
   float3 direction=SourceDirection(uv);float theta=acos(clamp(direction.z,-1,1));
   float angle=theta/MaxAngle()*(RTL_ANGLE_BINS-1);
   int bin=clamp(int(round(angle)),0,RTL_ANGLE_BINS-1);
+  bool anamorphic=IsAnamorphic(LensIndex);
+  float azimuth=atan2(direction.y,direction.x);
+  float phi=(azimuth/(2*_RTL_PI)+1)*RTL_AZIMUTH_BINS;
+  int azimuthBin=anamorphic?int(round(phi))%RTL_AZIMUTH_BINS:0;
+  bin+=azimuthBin*RTL_ANGLE_BINS;
   float total=tex2Dfetch(GhostTotalS,int2(0,bin)).x;
   if(total<=0)continue;
   float target=Random(seed+1274126177u)*total;int low=0,high=count-1;
@@ -54,31 +59,50 @@ void Splat(float2 position,float3 flux,uint seed){
   float ghostPDF=(current-previous)/total;if(ghostPDF<=0)continue;
   float4 bounds=float4(-lensRadius,-lensRadius,lensRadius,lensRadius);
   // Off-screen directions beyond the table use full-domain tracing.
-  if(UseBounds && angle<=RTL_ANGLE_BINS-1){
+  if(UseBounds && angle<=RTL_ANGLE_BINS-1 && tex2Dfetch(CacheS,int2(0,0)).w==0){
    int a=clamp(int(floor(angle)),0,RTL_ANGLE_BINS-1),b=min(a+1,RTL_ANGLE_BINS-1);
-   float4 ba=tex2Dfetch(EntranceBoundsS,int2(ghost,a)),bb=tex2Dfetch(EntranceBoundsS,int2(ghost,b));
+   int pa=anamorphic?int(floor(phi))%RTL_AZIMUTH_BINS:0,pb=anamorphic?(pa+1)%RTL_AZIMUTH_BINS:0;
+   float4 ba=tex2Dfetch(EntranceBoundsS,int2(ghost,a+pa*RTL_ANGLE_BINS)),bb=tex2Dfetch(EntranceBoundsS,int2(ghost,b+pa*RTL_ANGLE_BINS));
    bounds=float4(min(ba.xy,bb.xy),max(ba.zw,bb.zw));
+   if(anamorphic){
+    ba=tex2Dfetch(EntranceBoundsS,int2(ghost,a+pb*RTL_ANGLE_BINS));bb=tex2Dfetch(EntranceBoundsS,int2(ghost,b+pb*RTL_ANGLE_BINS));
+    bounds=float4(min(bounds.xy,min(ba.xy,bb.xy)),max(bounds.zw,max(ba.zw,bb.zw)));
+   }
   }
   float2 size=bounds.zw-bounds.xy;
   float2 entrance=lerp(bounds.xy,bounds.zw,float2(Random(seed+1831565813u),Random(seed+1367130551u)));
   // Axisymmetric optical data is bounded at azimuth zero, then rotated to
   // the actual light direction. The non-circular iris is evaluated afterward.
-  float azimuth=atan2(direction.y,direction.x),c=cos(azimuth),s=sin(azimuth);
-  entrance=float2(c*entrance.x-s*entrance.y,s*entrance.x+c*entrance.y);
+  if(!anamorphic){float c=cos(azimuth),s=sin(azimuth);entrance=float2(c*entrance.x-s*entrance.y,s*entrance.x+c*entrance.y);}
   float sourceScale=TestLight?1:pixelRatio;
   float3 importance=colour*(sourceScale*size.x*size.y/(normalArea*sourcePDF*ghostPDF*float(RayBudget)))*exp2(FlareExposure);
   int2 pair=GhostPair(ghost);
   [loop]for(int wave=0;wave<SpectralSamples;++wave){
    atomicAdd(CountersU,int2(0,0),1);
-   float4 ray=TraceBundle(entrance,direction,pair,Wavelength(wave),false);
+   float4 ray;
+   if(barrel){ray=TraceBundle(entrance,direction,pair,Wavelength(wave),false);}
+   else{ray=TraceGlass(entrance,direction,pair,Wavelength(wave),false,advanced);}
    if(ray.w==0){atomicAdd(CountersU,int2(2,0),1);continue;}
    atomicAdd(CountersU,int2(1,0),1);
-   float2 sensorUV=0.5-ray.xy/SensorSize();
+   if(pair.x==-2)atomicAdd(CountersU,int2(5,0),1);
+   float2 sensorUV=0.5-SensorFromLens(ray.xy)/SensorSize();
    float2 pixel=sensorUV*float2(BUFFER_WIDTH,BUFFER_HEIGHT)/RTL_RENDER_DIVISOR-0.5;
    float3 energy=importance*ray.z*SpectralResponse(Wavelength(wave))/max(spectral,1e-30);
+   if(pair.x==-2)energy*=BarrelTint;
    if(!any(isnan(energy)) && !any(isinf(energy)))Splat(pixel,energy,seed+uint(wave)*1597334677u);
   }
  }
+}
+// Constant specialization removes unused Newton/cylinder/wall code from the
+// common spherical kernel. Exactly one kernel traces the full requested budget.
+[numthreads(64,1,1)]void CS_Rays(uint3 id:SV_DispatchThreadID){
+ if(BarrelEnabled || LensHasShapes(LensIndex))return;Rays(id,false,false);
+}
+[numthreads(64,1,1)]void CS_RaysAdvanced(uint3 id:SV_DispatchThreadID){
+ if(BarrelEnabled || !LensHasShapes(LensIndex))return;Rays(id,true,false);
+}
+[numthreads(64,1,1)]void CS_RaysBarrel(uint3 id:SV_DispatchThreadID){
+ if(!BarrelEnabled)return;Rays(id,true,true);
 }
 [numthreads(1,1,1)]void CS_HistoryState(uint3 id:SV_DispatchThreadID){
  float4 previous=tex2Dfetch(SourcePreviousS,int2(0,0)),current=tex2Dfetch(SourceMetaS,int2(0,0));
@@ -102,8 +126,11 @@ void Splat(float2 position,float3 flux,uint seed){
 }
 [numthreads(8,8,1)]void CS_Commit(uint3 id:SV_DispatchThreadID){
  if(id.x<_RTL_W && id.y<_RTL_H)tex2Dstore(FlarePreviousU,int2(id.xy),tex2Dfetch(FlareCurrentS,int2(id.xy)));
- if(id.y==0 && id.x<12)tex2Dstore(ConfigPreviousU,int2(id.x,0),Parameters(id.x));
+ if(id.y==0 && id.x<_RTL_PARAMETERS)tex2Dstore(ConfigPreviousU,int2(id.x,0),Parameters(id.x));
  if(id.y==0 && id.x<2)tex2Dstore(SourcePreviousU,int2(id.x,0),tex2Dfetch(SourceMetaS,int2(id.x,0)));
- if(all(id.xy==0))tex2Dstore(HistoryStateU,int2(0,0),tex2Dfetch(HistoryNextS,int2(0,0)));
+ if(all(id.xy==0)){
+  tex2Dstore(HistoryStateU,int2(0,0),tex2Dfetch(HistoryNextS,int2(0,0)));
+  if(tex2Dfetch(CacheS,int2(0,0)).x!=0)tex2Dstore(BoundsAnchorU,int2(0,0),float4(LensIndex,ActiveZoom(),20261008,0));
+ }
 }
 }

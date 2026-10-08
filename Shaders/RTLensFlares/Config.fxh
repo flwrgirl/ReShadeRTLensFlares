@@ -6,8 +6,16 @@
 #ifndef RTL_ANGLE_BINS
 #define RTL_ANGLE_BINS 32
 #endif
+#ifndef RTL_AZIMUTH_BINS
+#define RTL_AZIMUTH_BINS 8
+#endif
+#define _RTL_ANGLE_ROWS (RTL_ANGLE_BINS*RTL_AZIMUTH_BINS)
+#define _RTL_PARAMETERS 17
 #ifndef RTL_BOUND_GRID
 #define RTL_BOUND_GRID 32
+#endif
+#ifndef RTL_BOUND_WORKERS
+#define RTL_BOUND_WORKERS 2048
 #endif
 #ifndef RTL_TRACE_WORKERS
 #define RTL_TRACE_WORKERS 16384
@@ -24,7 +32,7 @@
 #ifndef OFB2_SPECTRAL_SAMPLES
 #define OFB2_SPECTRAL_SAMPLES 3
 #endif
-#if RTL_RENDER_DIVISOR < 1 || RTL_TRACE_WORKERS < 1 || RTL_BOUND_GRID < 1 || RTL_ANGLE_BINS < 2
+#if RTL_RENDER_DIVISOR < 1 || RTL_TRACE_WORKERS < 1 || RTL_BOUND_GRID < 1 || RTL_BOUND_WORKERS < 1 || RTL_ANGLE_BINS < 2 || RTL_AZIMUTH_BINS < 1
 #error "Positive allocation dimensions required, with at least two angle bins. There are no upper limits."
 #endif
 #define _RTL_W ((BUFFER_WIDTH+RTL_RENDER_DIVISOR-1)/RTL_RENDER_DIVISOR)
@@ -35,8 +43,8 @@
 #define _RTL_TY ((_RTL_SH+15)/16)
 #define _RTL_TILES (_RTL_TX*_RTL_TY)
 #define _RTL_BLOCKS ((_RTL_TILES+255)/256)
-#if ((_RTL_W+7)/8) < 2
-#define _RTL_COMMIT_X 2
+#if ((_RTL_W+7)/8) < ((_RTL_PARAMETERS+7)/8)
+#define _RTL_COMMIT_X ((_RTL_PARAMETERS+7)/8)
 #else
 #define _RTL_COMMIT_X ((_RTL_W+7)/8)
 #endif

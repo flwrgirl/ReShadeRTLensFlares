@@ -3,7 +3,8 @@ namespace RTL {
 float3 BoundsView(float2 uv){
  bool entrance=uv.x<0.5;
  float2 xy=float2(frac(uv.x*2),uv.y)*2-1;
- float4 box=entrance?tex2Dfetch(EntranceBoundsS,int2(InspectSequence,InspectAngle)):tex2Dfetch(SensorBoundsS,int2(InspectSequence,InspectAngle));
+ int row=InspectAngle+(IsAnamorphic(LensIndex)?InspectAzimuth*RTL_ANGLE_BINS:0);
+ float4 box=entrance?tex2Dfetch(EntranceBoundsS,int2(InspectSequence,row)):tex2Dfetch(SensorBoundsS,int2(InspectSequence,row));
  float2 domain=entrance?EntranceRadius().xx:SensorSize()*0.5;
  float2 p=xy*domain;
  float2 q=min(abs(p-box.xy),abs(p-box.zw))/domain;
@@ -35,12 +36,14 @@ float4 PS_Composite(float4 position:SV_Position,float2 uv:TEXCOORD0):SV_Target{
  else if(RTDebugView==6)value=BoundsView(uv);
  else if(RTDebugView==7){
   int2 p=int2(uv*float2(GhostCount(),RTL_ANGLE_BINS));p=min(p,int2(GhostCount()-1,RTL_ANGLE_BINS-1));
+  if(IsAnamorphic(LensIndex))p.y+=InspectAzimuth*RTL_ANGLE_BINS;
   float a=tex2Dfetch(GhostCDFS,p).x,b=p.x>0?tex2Dfetch(GhostCDFS,p-int2(1,0)).x:0;
   float probability=(a-b)/max(tex2Dfetch(GhostTotalS,int2(0,p.y)).x,1e-30);
   value=float3(probability*GhostCount()*0.5,probability*GhostCount()*0.15,0.04);
  }
  else if(RTDebugView==8){
-  int column=min(int(uv.x*5),4);float v=float(tex2Dfetch(CountersS,int2(column,0)));
+  int columns=BarrelEnabled?6:5;
+  int column=min(int(uv.x*columns),columns-1);float v=float(tex2Dfetch(CountersS,int2(column,0)));
   float total=float(RayBudget)*SpectralSamples;
   float height=column==3?v/(max(total,1)*4):column==4?(v>0?1:0):v/max(total,1);
   value=uv.y>1-height?(column==4?float3(1,0.05,0.01):float3(0.12,0.7,0.4)):float3(0.01,0.01,0.015);
