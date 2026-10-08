@@ -1,9 +1,10 @@
-// RTLensFlares v1.3.1 - MIT. Requires ReShade 6.8+ compute support.
+// RTLensFlares 1.6.0 - MIT. Requires ReShade 6.8+ compute support.
 // DX12 / Vulkan: spherical/aspheric ray tracing, AABB bundle sampling, integer
 // compute splatting, angle-dependent ghost probabilities and integrated FFT.
 #include "RTLensFlares/Config.fxh"
 #include "RTLensFlares/Lenses.fxh"
 #include "RTLensFlares/Controls.fxh"
+#include "RTLensFlares/LensMenu.fxh"
 #include "RTLensFlares/Resources.fxh"
 #include "RTLensFlares/FFT.fxh"
 #include "RTLensFlares/Optics.fxh"
@@ -11,9 +12,11 @@
 #include "RTLensFlares/Bounds.fxh"
 #include "RTLensFlares/Sources.fxh"
 #include "RTLensFlares/Trace.fxh"
+#include "RTLensFlares/Denoise.fxh"
+#include "RTLensFlares/Diagram.fxh"
 #include "RTLensFlares/Composite.fxh"
 
-technique RTLensFlares < ui_label="RTLensFlares v1"; ui_tooltip="Spherical, aspheric, continuous zoom and cylindrical anamorphic lens tracing, with optional inferred barrel reflections. Three source modes, per-direction bounds and budgets, integrated FFT. Numeric input is uncapped."; > {
+technique RTLensFlares < ui_label="RTLensFlares"; ui_tooltip="Ray-traced lens ghosts, shared light extraction and FFT diffraction."; > {
  pass ContinuousLens { ComputeShader=RTL::CS_LensState; DispatchSizeX=1; DispatchSizeY=1; GenerateMipMaps=false; }
  #include "RTLensFlares/FFTPrepare.fxh"
  pass LensCache { ComputeShader=RTL::CS_Cache; DispatchSizeX=1; DispatchSizeY=1; GenerateMipMaps=false; }
@@ -26,10 +29,20 @@ technique RTLensFlares < ui_label="RTLensFlares v1"; ui_tooltip="Spherical, asph
  pass ClearPhotons { ComputeShader=RTL::CS_Clear; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
  pass TracePhotons { ComputeShader=RTL::CS_Rays; DispatchSizeX=(RTL_TRACE_WORKERS+63)/64; DispatchSizeY=1; GenerateMipMaps=false; }
  pass TracePhotonsAdvanced { ComputeShader=RTL::CS_RaysAdvanced; DispatchSizeX=(RTL_TRACE_WORKERS+63)/64; DispatchSizeY=1; GenerateMipMaps=false; }
+ pass TracePhotonsCylinders { ComputeShader=RTL::CS_RaysCylinders; DispatchSizeX=(RTL_TRACE_WORKERS+63)/64; DispatchSizeY=1; GenerateMipMaps=false; }
  pass TracePhotonsBarrel { ComputeShader=RTL::CS_RaysBarrel; DispatchSizeX=(RTL_TRACE_WORKERS+63)/64; DispatchSizeY=1; GenerateMipMaps=false; }
  pass AccumulationState { ComputeShader=RTL::CS_HistoryState; DispatchSizeX=1; DispatchSizeY=1; GenerateMipMaps=false; }
  pass ResolvePhotons { ComputeShader=RTL::CS_Resolve; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
+ pass PreviewNoiseEstimate { ComputeShader=RTL::CS_PreviewNoise; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
+ pass PreviewWavelet1 { ComputeShader=RTL::CS_PreviewWaveletA1; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
+ pass PreviewWavelet2 { ComputeShader=RTL::CS_PreviewWaveletB2; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
+ pass PreviewWavelet4 { ComputeShader=RTL::CS_PreviewWaveletA4; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
+ pass PreviewWavelet8 { ComputeShader=RTL::CS_PreviewWaveletB8; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
+ pass PreviewEnergy { ComputeShader=RTL::CS_PreviewEnergy; DispatchSizeX=1; DispatchSizeY=1; GenerateMipMaps=false; }
+ pass PreviewFilter { ComputeShader=RTL::CS_PreviewFilter; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
  #include "RTLensFlares/FFTConvolve.fxh"
  pass CommitHistory { ComputeShader=RTL::CS_Commit; DispatchSizeX=_RTL_COMMIT_X; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
+ pass LensDiagram { ComputeShader=RTL::CS_DiagramGeometry; DispatchSizeX=(_RTL_DW+7)/8; DispatchSizeY=(_RTL_DH+7)/8; GenerateMipMaps=false; }
+ pass DiagramLightPaths { ComputeShader=RTL::CS_DiagramRays; DispatchSizeX=1; DispatchSizeY=1; GenerateMipMaps=false; }
  pass Composite { VertexShader=FFT::VS_Fullscreen; PixelShader=RTL::PS_Composite; }
 }

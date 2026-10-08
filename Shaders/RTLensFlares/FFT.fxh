@@ -24,7 +24,7 @@ namespace FFT {
 #define OFB2_PSF_OVERSAMPLE 1
 #endif
 #ifndef OFB2_LOAD_APERTURE_PNG
-#define OFB2_LOAD_APERTURE_PNG 0
+#define OFB2_LOAD_APERTURE_PNG 1
 #endif
 #ifndef OFB2_APERTURE_PNG
 #define OFB2_APERTURE_PNG "OpticalFFTBloomV2_Aperture.png"
@@ -388,8 +388,8 @@ uint BitReverse(uint x,uint n){uint r=0;for(uint b=n;b>1;b>>=1){r=(r<<1)|(x&1);x
 float2 Rotate(float2 p,float t){float s=sin(t),c=cos(t);return float2(c*p.x-s*p.y,s*p.x+c*p.y);}
 // FXC's atan2(0,0) is undefined; guard the input before evaluating it.
 float PolarAngle(float2 p){return atan2(p.y,any(p!=0)?p.x:1.0);}
-float LinkedAspect(){float2 axes=RTL::FocalAxes(LensIndex);float squeeze=LinkFFTAnamorphic && RTL::IsAnamorphic(LensIndex)?abs(axes.y/axes.x):1;return ApertureAspect/squeeze;}
-float LinkedRadius(){return ApertureRadius*(LinkFFTIris?FFTIrisReference/(FNumber==0?RTL::PupilInfo(LensIndex).z:FNumber):1);}
+float LinkedAspect(){float2 axes=RTL::FocalAxes(RTL::LensID());float squeeze=LinkFFTAnamorphic && RTL::IsAnamorphic(RTL::LensID())?abs(axes.y/axes.x):1;return ApertureAspect/squeeze;}
+float LinkedRadius(){return ApertureRadius*(LinkFFTIris?FFTIrisReference/(FNumber==0?RTL::PupilInfo(RTL::LensID()).z:FNumber):1);}
 float Lum(float3 v){return dot(v,float3(0.2126,0.7152,0.0722));}
 float3 Saturation(float3 v,float s){return max(lerp(Lum(v).xxx,v,s),0);}
 bool Dirty(){return tex2Dfetch(CacheStatusS,int2(0,0)).x>0.5;}
@@ -415,7 +415,7 @@ case 15:v=float4(KernelStretch.y,KernelRotation,Normalization,KernelExposure);br
 case 16:v=float4(KernelEdgeFade,DiffractionStrength,DiffractionExposure,CoreIntensity);break;
 case 17:v=float4(WingIntensity,WingLift,SpectralDispersion,ChromaticFocus);break;
 case 18:v=float4(FringeSuppression,V2_N,V2_DIV,V2_FX);break;
-case 20:v=float4(LinkFFTIris,FNumber,LensIndex,FFTIrisReference);break;
+case 20:v=float4(LinkFFTIris,FNumber,RTL::LensID(),FFTIrisReference);break;
 case 19:v=float4(V2_FY,V2_WAVES,V2_P,OFB2_LOAD_APERTURE_PNG);break;
 }return v;}
 [numthreads(1,1,1)]void CS_CacheState(uint3 id:SV_DispatchThreadID){
@@ -1254,6 +1254,13 @@ float3 Encode(float3 v){
 }
 float3 ExtractLight(float3 v){
  v=max(v,0)*exp2(PreExposure);
+ if(SourceMode==2 && (FullFrameContrast!=1 || FullFrameBlack!=0)){
+  float luminance=Lum(v);
+  if(luminance>0){
+   float shaped=FullFramePivot*pow(max(luminance-FullFrameBlack,0)/FullFramePivot,FullFrameContrast);
+   v*=shaped/luminance;
+  }
+ }
  float peak=max(v.r,max(v.g,v.b));
  v*=min(1,max(MaximumSource,0)/max(peak,0.00000001));
  float brightness=max(v.r,max(v.g,v.b));
@@ -1327,7 +1334,8 @@ float2 SourceRead(int2 p,uint channel){
   if(FFTAfterGhosts && GhostDiffraction!=0){
    float2 uv=(float2(q)+0.5)*V2_DIV/float2(BUFFER_WIDTH,BUFFER_HEIGHT);
    float2 fuv=uv*float2(BUFFER_WIDTH,BUFFER_HEIGHT)/(float2(_RTL_W,_RTL_H)*RTL_RENDER_DIVISOR);
-   value+=tex2Dlod(RTL::FlareLinearS,float4(fuv,0,0))[channel]*GhostDiffraction;
+   float3 ghosts=tex2Dlod(RTL::FlarePreviewLinearS,float4(fuv,0,0)).rgb;
+   value+=ghosts[channel]*GhostDiffraction;
   }
  }
  return float2(value,0);

@@ -3,7 +3,7 @@ namespace RTL {
 float3 BoundsView(float2 uv){
  bool entrance=uv.x<0.5;
  float2 xy=float2(frac(uv.x*2),uv.y)*2-1;
- int row=InspectAngle+(IsAnamorphic(LensIndex)?InspectAzimuth*RTL_ANGLE_BINS:0);
+ int row=InspectAngle+(IsAnamorphic(LensID())?InspectAzimuth*RTL_ANGLE_BINS:0);
  float4 box=entrance?tex2Dfetch(EntranceBoundsS,int2(InspectSequence,row)):tex2Dfetch(SensorBoundsS,int2(InspectSequence,row));
  float2 domain=entrance?EntranceRadius().xx:SensorSize()*0.5;
  float2 p=xy*domain;
@@ -16,7 +16,8 @@ float4 PS_Composite(float4 position:SV_Position,float2 uv:TEXCOORD0):SV_Target{
  float3 scene=FFT::Decode(tex2Dlod(FFT::GameS,float4(uv,0,0)).rgb);
  float2 flareUV=uv*float2(BUFFER_WIDTH,BUFFER_HEIGHT)/(float2(_RTL_W,_RTL_H)*RTL_RENDER_DIVISOR);
  float2 fftUV=uv*float2(BUFFER_WIDTH,BUFFER_HEIGHT)/(float2(V2_W,V2_H)*V2_DIV);
- float3 flare=FFT::Saturation(max(tex2Dlod(FlareLinearS,float4(flareUV,0,0)).rgb,0),FlareSaturation)*FlareTint;
+ float3 rawFlare=tex2Dlod(FlarePreviewLinearS,float4(flareUV,0,0)).rgb;
+ float3 flare=FFT::Saturation(max(rawFlare,0),FlareSaturation)*FlareTint;
  float3 bloom=BloomEnabled?FFT::Saturation(tex2Dlod(FFT::BloomS,float4(fftUV,0,0)).rgb,FFT::BloomSaturation)*FFT::BloomTint*FFT::BloomIntensity:0;
  if(TestLight && BloomEnabled){
   float3 kernel=FFT::NativeKernel((uv-TestPosition)*float2(BUFFER_WIDTH,BUFFER_HEIGHT));
@@ -24,7 +25,8 @@ float4 PS_Composite(float4 position:SV_Position,float2 uv:TEXCOORD0):SV_Target{
   bloom+=kernel*TestColour*TestPower*RTL_RENDER_DIVISOR*RTL_RENDER_DIVISOR*FFT::BloomIntensity;
  }
  float3 value=scene+flare+bloom;
- if(RTDebugView==1)value=flare;
+ if(RTDebugView==9)value=DiagramView(uv);
+ else if(RTDebugView==1)value=flare;
  else if(RTDebugView==2)value=bloom;
  else if(RTDebugView==3)value=tex2Dlod(FFT::SourceS,float4(fftUV,0,0)).rgb;
  else if(RTDebugView==4){
@@ -36,7 +38,7 @@ float4 PS_Composite(float4 position:SV_Position,float2 uv:TEXCOORD0):SV_Target{
  else if(RTDebugView==6)value=BoundsView(uv);
  else if(RTDebugView==7){
   int2 p=int2(uv*float2(GhostCount(),RTL_ANGLE_BINS));p=min(p,int2(GhostCount()-1,RTL_ANGLE_BINS-1));
-  if(IsAnamorphic(LensIndex))p.y+=InspectAzimuth*RTL_ANGLE_BINS;
+  if(IsAnamorphic(LensID()))p.y+=InspectAzimuth*RTL_ANGLE_BINS;
   float a=tex2Dfetch(GhostCDFS,p).x,b=p.x>0?tex2Dfetch(GhostCDFS,p-int2(1,0)).x:0;
   float probability=(a-b)/max(tex2Dfetch(GhostTotalS,int2(0,p.y)).x,1e-30);
   value=float3(probability*GhostCount()*0.5,probability*GhostCount()*0.15,0.04);

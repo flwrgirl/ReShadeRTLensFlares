@@ -1,7 +1,7 @@
 #pragma once
 namespace RTL {
 float4 Parameters(int i){
- if(i==0)return float4(LensIndex,FNumber,LensScale,SensorWidth);
+ if(i==0)return float4(LensID(),FNumber,LensScale,SensorWidth);
  if(i==1)return float4(FocusShift,ClearRadiusScale,Absorption,Dispersion);
  if(i==2)return float4(CoatingMix,CoatingIndex,CoatingThickness,BoundsPadding);
  if(i==3)return float4(BudgetExponent,UniformBudgetFraction,BrightnessBudget,UseBounds);
@@ -13,10 +13,11 @@ float4 Parameters(int i){
  if(i==9)return float4(FFT::Threshold,FFT::SoftKnee,FFT::PreExposure,FFT::SourceExposure);
  if(i==10)return float4(FFT::InputSpace,FFT::MaximumSource,FFT::HighlightCompression,FFT::PerChannelThreshold);
  if(i==11)return float4(RTL_BOUND_GRID,RTL_ANGLE_BINS,RTL_RENDER_DIVISOR,20261008);
- if(i==12)return float4(LensIndex,ActiveZoom(),IsAnamorphic(LensIndex)?1:0,20261008);
+ if(i==12)return float4(LensID(),ActiveZoom(),IsAnamorphic(LensID())?1:0,20261008);
  if(i==13)return float4(BarrelEnabled,BarrelRadiusScale,BarrelReflectivity,BarrelIntensity);
  if(i==14)return float4(BarrelTint,AnamorphicRotation);
  if(i==15)return float4(RTL_AZIMUTH_BINS,RTL_BOUND_WORKERS,0,0);
+ if(i==16)return float4(FullFrameContrast,FullFramePivot,FullFrameBlack,0);
  return float4(_RTL_PARAMETERS,0,0,20261008);
 }
 [numthreads(1,1,1)]void CS_Cache(uint3 id:SV_DispatchThreadID){
@@ -26,11 +27,12 @@ float4 Parameters(int i){
  boundsDirty=boundsDirty||any(Parameters(13)!=tex2Dfetch(ConfigPreviousS,int2(13,0)))||Parameters(14).w!=tex2Dfetch(ConfigPreviousS,int2(14,0)).w||any(Parameters(15)!=tex2Dfetch(ConfigPreviousS,int2(15,0)));
  float4 zoomPrevious=tex2Dfetch(ConfigPreviousS,int2(12,0)),anchor=tex2Dfetch(BoundsAnchorS,int2(0,0));
  bool zoomChanged=ActiveZoom()!=zoomPrevious.y;
- bool moving=ZoomCount(LensIndex)>0 && zoomPrevious.x==LensIndex && zoomChanged;
- bool anchorDirty=anchor.x!=LensIndex || anchor.y!=ActiveZoom() || anchor.z!=20261008;
+ bool moving=ZoomCount(LensID())>0 && zoomPrevious.x==LensID() && zoomChanged;
+ bool anchorDirty=anchor.x!=LensID() || anchor.y!=ActiveZoom() || anchor.z!=20261008;
  boundsDirty=boundsDirty||(!moving && anchorDirty);
  bool budgetDirty=boundsDirty || any(Parameters(3)!=tex2Dfetch(ConfigPreviousS,int2(3,0))) || Parameters(8).x!=tex2Dfetch(ConfigPreviousS,int2(8,0)).x;
  bool historyDirty=boundsDirty||zoomChanged||any(Parameters(14)!=tex2Dfetch(ConfigPreviousS,int2(14,0)));
+ historyDirty=historyDirty || any(Parameters(16)!=tex2Dfetch(ConfigPreviousS,int2(16,0)));
  [loop]for(int i=3;i<11;++i)historyDirty=historyDirty||any(Parameters(i)!=tex2Dfetch(ConfigPreviousS,int2(i,0)));
  tex2Dstore(CacheU,int2(0,0),float4(boundsDirty?1:0,budgetDirty?1:0,historyDirty?1:0,moving?1:0));
 }
@@ -75,7 +77,7 @@ void BuildBounds(int ghost,int angle,uint3 tid){
 }
 [numthreads(64,1,1)]void CS_Bounds(uint3 gid:SV_GroupID,uint3 tid:SV_GroupThreadID){
  if(tex2Dfetch(CacheS,int2(0,0)).x==0)return;
- int slices=IsAnamorphic(LensIndex)?RTL_AZIMUTH_BINS:1;
+ int slices=IsAnamorphic(LensID())?RTL_AZIMUTH_BINS:1;
  [loop]for(int ghost=int(gid.x);ghost<_RTL_GHOSTS;ghost+=(RTL_BOUND_WORKERS+63)/64){
   [loop]for(int phi=0;phi<slices;++phi)BuildBounds(ghost,int(gid.y)+phi*RTL_ANGLE_BINS,tid);
   if(slices==1 && tid.x==0){[loop]for(int phi=1;phi<RTL_AZIMUTH_BINS;++phi){
@@ -91,12 +93,12 @@ void BuildGhostCDF(int angle,uint3 tid){
  // Uniform rows keep diagnostics normalized for inactive symmetric slices.
  // They do not need the 64 redundant per-row subtotal scans used in v1.2.
  float partial=0;
- if(IsAnamorphic(LensIndex) || angle<RTL_ANGLE_BINS){
+ if(IsAnamorphic(LensID()) || angle<RTL_ANGLE_BINS){
   for(int i=int(tid.x);i<n;i+=64)partial+=pow(max(tex2Dfetch(BundleEnergyS,int2(i,angle)).x,1e-30),BudgetExponent);
  }else{partial=float(n)*pow(1e-30,BudgetExponent)/64;}
  BudgetReduce[tid.x]=partial;barrier();
  for(uint stride=32;stride>0;stride>>=1){if(tid.x<stride)BudgetReduce[tid.x]+=BudgetReduce[tid.x+stride];barrier();}
- if(LensIndex<2 && tid.x==0 && angle<RTL_ANGLE_BINS){
+ if(IsLegacyLens() && tid.x==0 && angle<RTL_ANGLE_BINS){
   // Retain the original rounding for existing Tessar/Minolta renders.
   float serial=0;for(int i=0;i<n;++i)serial+=pow(max(tex2Dfetch(BundleEnergyS,int2(i,angle)).x,1e-30),BudgetExponent);
   BudgetReduce[0]=serial;

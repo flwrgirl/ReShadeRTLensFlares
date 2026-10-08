@@ -9,30 +9,30 @@ float Wavelength(int spectralIndex) {
  if(SpectralSamples==3)return spectralIndex==0?610:spectralIndex==1?550:460;
  return lerp(420.0,680.0,float(spectralIndex)/float(SpectralSamples-1));
 }
-float EffectiveFNumber(){return FNumber==0?PupilInfo(LensIndex).z:FNumber;}
-float4 ActiveLens(){float4 info=LensInfo(LensIndex)*LensScale;info.y+=FocusShift;info.w*=PupilInfo(LensIndex).z/EffectiveFNumber();return info;}
-float EntranceRadius(){return PupilInfo(LensIndex).x*LensScale*ClearRadiusScale;}
+float EffectiveFNumber(){return FNumber==0?PupilInfo(LensID()).z:FNumber;}
+float4 ActiveLens(){float4 info=LensInfo(LensID())*LensScale;info.y+=FocusShift;info.w*=PupilInfo(LensID()).z/EffectiveFNumber();return info;}
+float EntranceRadius(){return PupilInfo(LensID()).x*LensScale*ClearRadiusScale;}
 float2 SensorSize(){return SensorWidth*float2(1,float(BUFFER_HEIGHT)/BUFFER_WIDTH);}
 float2 RotateXY(float2 p,float angle){float c=cos(angle),s=sin(angle);return float2(c*p.x-s*p.y,s*p.x+c*p.y);}
-float2 SensorFromLens(float2 p){return IsAnamorphic(LensIndex)?RotateXY(p,AnamorphicRotation*_RTL_PI/180):p;}
+float2 SensorFromLens(float2 p){return IsAnamorphic(LensID())?RotateXY(p,AnamorphicRotation*_RTL_PI/180):p;}
 float3 SourceDirection(float2 uv){
  float2 p=-(uv-0.5)*SensorSize()/ActiveLens().x;
- if(IsAnamorphic(LensIndex))p=RotateXY(-(uv-0.5)*SensorSize(),-AnamorphicRotation*_RTL_PI/180)/(FocalAxes(LensIndex)*LensScale);
- if(LensProjection(LensIndex)==0)return normalize(float3(p,1));
+ if(IsAnamorphic(LensID()))p=RotateXY(-(uv-0.5)*SensorSize(),-AnamorphicRotation*_RTL_PI/180)/(FocalAxes(LensID())*LensScale);
+ if(LensProjection(LensID())==0)return normalize(float3(p,1));
  // Equidistant input-angle approximation for fisheye prescriptions. The
  // game image is not warped; this maps light positions to incoming rays.
  float theta=length(p);
  return float3(p*(theta==0?1:sin(theta)/theta),cos(theta));
 }
-float MaxAngle(){float a=length(SensorSize()*0.5/ActiveLens().x);if(IsAnamorphic(LensIndex))a=length(SensorSize()*0.5)/(min(abs(FocalAxes(LensIndex).x),abs(FocalAxes(LensIndex).y))*abs(LensScale));return LensProjection(LensIndex)==0?atan(a):a;}
+float MaxAngle(){float a=length(SensorSize()*0.5/ActiveLens().x);if(IsAnamorphic(LensID()))a=length(SensorSize()*0.5)/(min(abs(FocalAxes(LensID()).x),abs(FocalAxes(LensID()).y))*abs(LensScale));return LensProjection(LensID())==0?atan(a):a;}
 float IndexAt(float2 glass,float lambda){
  if(glass.y==0)return glass.x;
  // Two-term Cauchy: nd and the F-C separation prescribed by Vd.
  float invF=1.0/(486.1327*486.1327),invC=1.0/(656.2725*656.2725);
  float b=(glass.x-1)/((glass.y==0?1:glass.y)*(invF-invC));
- if(GlassReferenceKind(LensIndex)!=0){
+ if(GlassReferenceKind(LensID())!=0){
   // Preserve ne/Ve tables at the mercury e-line and F'/C' lines.
-  float3 spectrum=GlassSpectrum(LensIndex);
+  float3 spectrum=GlassSpectrum(LensID());
   b=(glass.x-1)/(glass.y*(spectrum.x-spectrum.y));
   return glass.x+Dispersion*b*(1/(lambda*lambda)-spectrum.z);
  }
@@ -41,7 +41,7 @@ float IndexAt(float2 glass,float lambda){
 float InterfaceIndex(int surface,float lambda){
  if(surface<0)return 1;
  // Retain the exact original arithmetic for the two original presets.
- if(LensIndex<2)return IndexAt(Material(LensIndex,surface),lambda);
+ if(IsLegacyLens())return IndexAt(Material(LensID(),surface),lambda);
  float4 glass=tex2Dfetch(LiveLensS,int2(surface+4,1));
  return glass.x+Dispersion*glass.z*(1/(lambda*lambda)-glass.w);
 }
@@ -69,14 +69,14 @@ float Reflectance(float n0,float n1,float cosine,float lambda,out float transmit
  return reflectivity;
 }
 bool BarrelGap(int i){
- if(abs(Material(LensIndex,i).x-1)>0.0001)return false;
- float end=i+1<SurfaceCount(LensIndex)?Geometry(LensIndex,i+1).x*LensScale:ActiveLens().y;
- return end>Geometry(LensIndex,i).x*LensScale+0.00002*abs(LensScale);
+ if(abs(Material(LensID(),i).x-1)>0.0001)return false;
+ float end=i+1<SurfaceCount(LensID())?Geometry(LensID(),i+1).x*LensScale:ActiveLens().y;
+ return end>Geometry(LensID(),i).x*LensScale+0.00002*abs(LensScale);
 }
-int GlassGhostCount(){int n=SurfaceCount(LensIndex);return n*(n-1)/2;}
-int GhostCount(){int count=GlassGhostCount();if(BarrelEnabled){[loop]for(int i=0;i<SurfaceCount(LensIndex);++i)if(BarrelGap(i))++count;}return count;}
+int GlassGhostCount(){int n=SurfaceCount(LensID());return n*(n-1)/2;}
+int GhostCount(){int count=GlassGhostCount();if(BarrelEnabled){[loop]for(int i=0;i<SurfaceCount(LensID());++i)if(BarrelGap(i))++count;}return count;}
 int2 GhostPair(int ghost){
- int n=SurfaceCount(LensIndex),k=GlassGhostCount();
+ int n=SurfaceCount(LensID()),k=GlassGhostCount();
  if(ghost<k){
   int rear=int(floor((1+sqrt(1+8*float(ghost)))*0.5));
   int start=rear*(rear-1)/2;
@@ -109,12 +109,12 @@ bool IrisSegment(float3 p,float3 d,float distance,bool probe,inout float energy)
  return IrisSegmentAt(ActiveLens(),p,d,distance,probe,energy);
 }
 void AsphereEquation(int model,float radius,float conic,int terms,
-                     float coefficients[_RTL_ASPHERIC_TERMS],float3 q,
+                     float4 coefficients[(_RTL_ASPHERIC_TERMS+3)/4],float3 q,
                      out float residual,out float3 gradient){
  float h2=dot(q.xy,q.xy);
- float x=model==2?0.5*(h2+q.z*q.z):h2;
+ float x=model==2?0.5*(h2+q.z*q.z):model==4?sqrt(h2):h2;
  float poly=0,derivative=0;
- [loop]for(int i=terms-1;i>=0;--i){derivative=derivative*x+poly;poly=poly*x+coefficients[i];}
+ [loop]for(int i=terms-1;i>=0;--i){derivative=derivative*x+poly;poly=poly*x+coefficients[i/4][i%4];}
  if(model==2){
   // Leica US5161060: p(s)=sum K(n)*(s^2/2)^n, s is the 3D
   // chord from the vertex. This is an implicit surface, not a sag polynomial.
@@ -126,20 +126,15 @@ void AsphereEquation(int model,float radius,float conic,int terms,
   float discriminant=1-(1+conic)*c*c*h2;
   if(discriminant<=0){residual=1e30;gradient=0;return;}
   float root=sqrt(discriminant);
-  float sag=c*h2/(1+root)+h2*h2*poly;
-  float slope=c/root+2*(2*h2*poly+h2*h2*derivative);
+  float sag=c*h2/(1+root)+(model==4?h2*x*poly:h2*h2*poly);
+  float slope=c/root+(model==4?3*x*poly+h2*derivative:2*(2*h2*poly+h2*h2*derivative));
   residual=q.z-sag;gradient=float3(-slope*q.xy,1);
  }
 }
-bool AsphereIntersection(float4 geometry,float3 p,float3 d,
-                         inout float distance,out float3 normal){
- int address=int(geometry.w);
- int model=int(LensData(address)),terms=int(LensData(address+2));
- float conic=LensData(address+1),coefficients[_RTL_ASPHERIC_TERMS];
- if(model==3){
+bool CylinderIntersection(float4 geometry,float3 p,float3 d,out float distance,out float3 normal){
   // Circular cylindrical sag: powered direction has curvature 1/R and
   // its perpendicular direction is flat. Solve analytically in either travel.
-  float2 axis=float2(cos(conic),sin(conic));float3 q=p/LensScale;q.z-=geometry.x;
+  float2 axis=tex2Dfetch(LiveShapeS,int2(int(geometry.w)-1,1)).xy;float3 q=p/LensScale;q.z-=geometry.x;
   float2 origin=float2(dot(q.xy,axis),q.z-geometry.y),ray=float2(dot(d.xy,axis),d.z);
   float aa=dot(ray,ray),bb=dot(origin,ray),disc=bb*bb-aa*(dot(origin,origin)-geometry.y*geometry.y);
   if(aa==0 || disc<0)return false;
@@ -148,31 +143,43 @@ bool AsphereIntersection(float4 geometry,float3 p,float3 d,
   float2 hit=origin+ray*t;normal=normalize(float3(axis*hit.x,hit.y));distance=t*LensScale;
   if(geometry.y>0)normal=-normal;
   return !isnan(t) && !isinf(t);
+}
+bool AsphereIntersection(float4 geometry,float3 p,float3 d,
+                         inout float distance,out float3 normal){
+ int address=int(geometry.w)-1;
+ float4 shape=tex2Dfetch(LiveShapeS,int2(address,0));
+ int model=int(shape.x),terms=int(shape.z);
+ float conic=shape.y;float4 coefficients[(_RTL_ASPHERIC_TERMS+3)/4];
+ if(model==3)return CylinderIntersection(geometry,p,d,distance,normal);
+ [unroll]for(int row=0;row<(_RTL_ASPHERIC_TERMS+3)/4;++row){
+  coefficients[row]=tex2Dfetch(LiveShapeS,int2(address,1+row));
  }
- [loop]for(int i=0;i<terms;++i)coefficients[i]=LensData(address+3+i);
  float3 origin=p/LensScale;origin.z-=geometry.x;
  float t=distance/LensScale,residual=0;float3 gradient=0;
  float tolerance=0.00001+0.000002*abs(geometry.x);
  // A numerical convergence bound, independent of spectral/ray budgets.
  // Failed roots are rejected instead of producing a nonphysical hit.
- [loop]for(int iteration=0;iteration<12;++iteration){
+ // The final verification is iteration 12, after twelve Newton updates.
+ // One equation call site prevents FXC from duplicating the polynomial body.
+ [loop]for(int iteration=0;iteration<=12;++iteration){
   AsphereEquation(model,geometry.y,conic,terms,coefficients,origin+d*t,residual,gradient);
-  if(abs(residual)<=tolerance)break;
+  if(abs(residual)<=tolerance || (iteration==12 && !(abs(residual)>tolerance))){
+   if(isnan(t) || isinf(t) || dot(gradient,gradient)==0)return false;
+   distance=t*LensScale;normal=normalize(gradient);return true;
+  }
+  if(iteration==12)return false;
   float slope=dot(gradient,d);
   if(abs(slope)<0.0000001 || any(isnan(gradient)) || any(isinf(gradient)))return false;
   t-=residual/slope;
  }
- AsphereEquation(model,geometry.y,conic,terms,coefficients,origin+d*t,residual,gradient);
- if(abs(residual)>tolerance || isnan(t) || isinf(t) || dot(gradient,gradient)==0)return false;
- distance=t*LensScale;normal=normalize(gradient);
- return true;
+ return false;
 }
-bool SurfaceIntersectionAt(float4 geometry,float3 p,float3 d,bool advanced,out float t,out float3 normal){
+bool SurfaceIntersectionTyped(float4 geometry,float3 p,float3 d,bool advanced,bool cylindersOnly,out float t,out float3 normal){
  float4 g=geometry;g.xyz*=LensScale;
  t=0;normal=float3(0,0,1);
  // Cylinders have an analytic root and do not need the spherical seed.
- if(advanced){if(g.w!=0){if(int(LensData(int(g.w)))==3){
-  if(!AsphereIntersection(geometry,p,d,t,normal))return false;
+ if(advanced){if(g.w!=0){if(cylindersOnly || int(tex2Dfetch(LiveShapeS,int2(int(g.w)-1,0)).x)==3){
+  if(!CylinderIntersection(geometry,p,d,t,normal))return false;
   return t>=0;
  }}}
  if(g.y==0){if(abs(d.z)<0.0000001)return false;t=(g.x-p.z)/d.z;}
@@ -191,19 +198,22 @@ bool SurfaceIntersectionAt(float4 geometry,float3 p,float3 d,bool advanced,out f
  }
  // ReShade FX does not short-circuit logical expressions. Keep this call
  // inside its own branch: it mutates t/normal and is only valid for aspheres.
- if(advanced){if(g.w!=0){
+ if(advanced && !cylindersOnly){if(g.w!=0){
   if(!AsphereIntersection(geometry,p,d,t,normal))return false;
  }}
  return t>=0;
 }
-bool SurfaceIntersection(int index,float3 p,float3 d,out float t,out float3 normal){
- return SurfaceIntersectionAt(Geometry(LensIndex,index),p,d,true,t,normal);
+bool SurfaceIntersectionAt(float4 geometry,float3 p,float3 d,bool advanced,out float t,out float3 normal){
+ return SurfaceIntersectionTyped(geometry,p,d,advanced,false,t,normal);
 }
-bool HitSurface(int index,int travel,bool bounce,float lambda,bool probe,bool advanced,float4 iris,
+bool SurfaceIntersection(int index,float3 p,float3 d,out float t,out float3 normal){
+ return SurfaceIntersectionAt(Geometry(LensID(),index),p,d,true,t,normal);
+}
+bool HitSurfaceTyped(int index,int travel,bool bounce,float lambda,bool probe,bool advanced,bool cylindersOnly,float4 iris,
                 inout float3 p,inout float3 d,inout float energy){
- float4 geometry=Geometry(LensIndex,index),g=geometry;g.xyz*=LensScale;g.z*=ClearRadiusScale;
+ float4 geometry=Geometry(LensID(),index),g=geometry;g.xyz*=LensScale;g.z*=ClearRadiusScale;
  float t=0;float3 normal=0;
- if(!SurfaceIntersectionAt(geometry,p,d,advanced,t,normal))return false;
+ if(!SurfaceIntersectionTyped(geometry,p,d,advanced,cylindersOnly,t,normal))return false;
  float3 hit=p+d*t;
  if(dot(hit.xy,hit.xy)>g.z*g.z)return false;
  if(!IrisSegmentAt(iris,p,d,t,probe,energy))return false;
@@ -222,55 +232,65 @@ bool HitSurface(int index,int travel,bool bounce,float lambda,bool probe,bool ad
  p=hit+d*(0.00001*abs(LensScale));
  return energy>0 && !any(isnan(p)) && !any(isinf(p)) && !any(isnan(d)) && !any(isinf(d));
 }
-float4 TraceBarrel(float2 entrance,float3 direction,int gap,float lambda,bool probe){
- float3 p=float3(entrance,PupilInfo(LensIndex).y*LensScale),d=direction;float energy=direction.z;
- int n=SurfaceCount(LensIndex);float4 iris=ActiveLens();
- [loop]for(int i=0;i<=gap;++i)if(!HitSurface(i,1,false,lambda,probe,true,iris,p,d,energy))return 0;
- float4 first=Geometry(LensIndex,gap),next=gap+1<n?Geometry(LensIndex,gap+1):float4(ActiveLens().y/LensScale,0,first.z,0);
+bool HitSurface(int index,int travel,bool bounce,float lambda,bool probe,bool advanced,float4 iris,
+                inout float3 p,inout float3 d,inout float energy){
+ return HitSurfaceTyped(index,travel,bounce,lambda,probe,advanced,false,iris,p,d,energy);
+}
+bool BarrelBounce(int gap,bool probe,inout float3 p,inout float3 d,inout float energy){
+ int n=SurfaceCount(LensID());
+ float4 first=Geometry(LensID(),gap),next=gap+1<n?Geometry(LensID(),gap+1):float4(ActiveLens().y/LensScale,0,first.z,0);
  float radius=max(first.z,next.z)*LensScale*ClearRadiusScale*BarrelRadiusScale;
  float aa=dot(d.xy,d.xy),bb=dot(p.xy,d.xy),disc=bb*bb-aa*(dot(p.xy,p.xy)-radius*radius);
- if(aa==0 || disc<0 || radius<=0)return 0;
+ if(aa==0 || disc<0 || radius<=0)return false;
  float root=sqrt(disc),t=(-bb+root)/aa;
  // Starting outside the inferred wall is rejected rather than reflecting
  // an unphysical ray. Only the first outgoing wall crossing is used.
- if(dot(p.xy,p.xy)>=radius*radius || t<=0)return 0;
+ if(dot(p.xy,p.xy)>=radius*radius || t<=0)return false;
  float3 hit=p+d*t;
- if(hit.z<=first.x*LensScale || hit.z>=next.x*LensScale)return 0;
+ if(hit.z<=first.x*LensScale || hit.z>=next.x*LensScale)return false;
  float limit=(ActiveLens().y-p.z)/d.z;float3 unused=0;
- if(gap+1<n){if(!SurfaceIntersection(gap+1,p,d,limit,unused))return 0;}
- if(t>=limit || !IrisSegment(p,d,t,probe,energy))return 0;
+ if(gap+1<n){if(!SurfaceIntersection(gap+1,p,d,limit,unused))return false;}
+ if(t>=limit || !IrisSegment(p,d,t,probe,energy))return false;
  float3 normal=normalize(float3(hit.xy,0));float cosine=abs(dot(normal,d));
  energy*=BarrelIntensity*(BarrelReflectivity+(1-BarrelReflectivity)*pow(1-cosine,5));
  d=reflect(d,normal);p=hit+d*(0.00001*abs(LensScale));
- [loop]for(int i=gap+1;i<n;++i)if(!HitSurface(i,1,false,lambda,probe,true,iris,p,d,energy))return 0;
- if(d.z<=0)return 0;t=(ActiveLens().y-p.z)/d.z;
- if(t<0 || !IrisSegment(p,d,t,probe,energy))return 0;
- float2 sensor=(p+d*t).xy;
- if(any(isnan(sensor)) || any(isinf(sensor)) || energy<=0)return 0;
- return float4(sensor,energy,1);
+ return true;
 }
-float4 TraceGlass(float2 entrance,float3 direction,int2 pair,float lambda,bool probe,bool advanced){
- float3 p=float3(entrance,PupilInfo(LensIndex).y*LensScale),d=direction;
+float4 TracePath(float2 entrance,float3 direction,int2 pair,float lambda,bool probe,bool advanced,bool barrel,bool cylindersOnly){
+ float3 p=float3(entrance,PupilInfo(LensID()).y*LensScale),d=direction;
  float energy=direction.z;
- int n=SurfaceCount(LensIndex);float4 iris=ActiveLens();
- [loop]for(int i=0;i<=pair.x;++i)if(!HitSurface(i,1,i==pair.x,lambda,probe,advanced,iris,p,d,energy))return 0;
- [loop]for(int i=pair.x-1;i>=pair.y;--i)if(!HitSurface(i,-1,i==pair.y,lambda,probe,advanced,iris,p,d,energy))return 0;
- [loop]for(int i=pair.y+1;i<n;++i)if(!HitSurface(i,1,false,lambda,probe,advanced,iris,p,d,energy))return 0;
+ int n=SurfaceCount(LensID());float4 iris=ActiveLens();
+ // One hit site serves glass and wall sequences. FXC otherwise duplicates
+ // the complete intersection/coating solver at each traversal phase.
+ int secondBounce=2*pair.x-pair.y;
+ int steps=barrel?n:n+2*(pair.x-pair.y);
+ [loop]for(int step=0;step<steps;++step){
+  bool backward=!barrel && step>pair.x && step<=secondBounce;
+  int index=barrel?step:step<=pair.x?step:backward?2*pair.x-step:step-2*(pair.x-pair.y);
+  bool bounce=!barrel && (step==pair.x || step==secondBounce);
+  if(!HitSurfaceTyped(index,backward?-1:1,bounce,lambda,probe,advanced,cylindersOnly,iris,p,d,energy))return 0;
+  if(barrel){if(index==pair.y){if(!BarrelBounce(pair.y,probe,p,d,energy))return 0;}}
+ }
  if(d.z<=0)return 0;
  float t=(ActiveLens().y-p.z)/d.z;
  if(t<0 || !IrisSegment(p,d,t,probe,energy))return 0;
  float2 sensor=(p+d*t).xy;
- if(any(isnan(sensor))||any(isinf(sensor)))return 0;
+ if(any(isnan(sensor))||any(isinf(sensor)) || (barrel && energy<=0))return 0;
  return float4(sensor,energy,1);
 }
+float4 TraceGlass(float2 entrance,float3 direction,int2 pair,float lambda,bool probe,bool advanced){
+ return TracePath(entrance,direction,pair,lambda,probe,advanced,false,false);
+}
+float4 TraceBarrel(float2 entrance,float3 direction,int gap,float lambda,bool probe){
+ return TracePath(entrance,direction,int2(-2,gap),lambda,probe,true,true,false);
+}
 float4 TraceBundle(float2 entrance,float3 direction,int2 pair,float lambda,bool probe){
- if(pair.x==-2)return TraceBarrel(entrance,direction,pair.y,lambda,probe);
- return TraceGlass(entrance,direction,pair,lambda,probe,true);
+ return TracePath(entrance,direction,pair,lambda,probe,true,pair.x==-2,false);
 }
 float BarePairEstimate(int2 pair){
  if(pair.x==-2)return BarrelReflectivity*BarrelIntensity*0.001;
- float2 a=pair.x==0?float2(1,0):Material(LensIndex,pair.x-1),b=Material(LensIndex,pair.x);
- float2 c=pair.y==0?float2(1,0):Material(LensIndex,pair.y-1),d=Material(LensIndex,pair.y);
+ float2 a=pair.x==0?float2(1,0):Material(LensID(),pair.x-1),b=Material(LensID(),pair.x);
+ float2 c=pair.y==0?float2(1,0):Material(LensID(),pair.y-1),d=Material(LensID(),pair.y);
  float r0=(a.x-b.x)/(a.x+b.x),r1=(c.x-d.x)/(c.x+d.x);
  return r0*r0*r1*r1*0.001;
 }
