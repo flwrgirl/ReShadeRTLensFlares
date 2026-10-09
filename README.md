@@ -23,7 +23,7 @@ parameterised ai slop generated reshade shader for realistic lens flares
 #### features coming soon maybe
 - better denoising/ preview filters
 
-[based on this paper](https://dl.acm.org/doi/10.1145/2010324.1965003)
+[based on this paper](https://dl.acm.org/doi/10.1145/2010324.1965003)  
 inspired by the amazing lens tracing work of [LandHooman](https://land_hooman.artstation.com/) in samuel krug's [mrenders discord server](https://discord.gg/nXCErDSdgz)
 
 #### support human creation, free palestine
