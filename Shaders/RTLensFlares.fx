@@ -1,4 +1,4 @@
-// RTLensFlares 1.6.0 - MIT. Requires ReShade 6.8+ compute support.
+// RTLensFlares 1.7.0 - MIT. Requires ReShade 6.8+ compute support.
 // DX12 / Vulkan: spherical/aspheric ray tracing, AABB bundle sampling, integer
 // compute splatting, angle-dependent ghost probabilities and integrated FFT.
 #include "RTLensFlares/Config.fxh"
@@ -11,8 +11,9 @@
 #include "RTLensFlares/Zoom.fxh"
 #include "RTLensFlares/Bounds.fxh"
 #include "RTLensFlares/Sources.fxh"
-#include "RTLensFlares/Trace.fxh"
+#include "RTLensFlares/DenoiseState.fxh"
 #include "RTLensFlares/Denoise.fxh"
+#include "RTLensFlares/Trace.fxh"
 #include "RTLensFlares/Diagram.fxh"
 #include "RTLensFlares/Composite.fxh"
 
@@ -33,12 +34,6 @@ technique RTLensFlares < ui_label="RTLensFlares"; ui_tooltip="Ray-traced lens gh
  pass TracePhotonsBarrel { ComputeShader=RTL::CS_RaysBarrel; DispatchSizeX=(RTL_TRACE_WORKERS+63)/64; DispatchSizeY=1; GenerateMipMaps=false; }
  pass AccumulationState { ComputeShader=RTL::CS_HistoryState; DispatchSizeX=1; DispatchSizeY=1; GenerateMipMaps=false; }
  pass ResolvePhotons { ComputeShader=RTL::CS_Resolve; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
- pass PreviewNoiseEstimate { ComputeShader=RTL::CS_PreviewNoise; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
- pass PreviewWavelet1 { ComputeShader=RTL::CS_PreviewWaveletA1; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
- pass PreviewWavelet2 { ComputeShader=RTL::CS_PreviewWaveletB2; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
- pass PreviewWavelet4 { ComputeShader=RTL::CS_PreviewWaveletA4; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
- pass PreviewWavelet8 { ComputeShader=RTL::CS_PreviewWaveletB8; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
- pass PreviewEnergy { ComputeShader=RTL::CS_PreviewEnergy; DispatchSizeX=1; DispatchSizeY=1; GenerateMipMaps=false; }
  pass PreviewFilter { ComputeShader=RTL::CS_PreviewFilter; DispatchSizeX=(_RTL_W+7)/8; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }
  #include "RTLensFlares/FFTConvolve.fxh"
  pass CommitHistory { ComputeShader=RTL::CS_Commit; DispatchSizeX=_RTL_COMMIT_X; DispatchSizeY=(_RTL_H+7)/8; GenerateMipMaps=false; }

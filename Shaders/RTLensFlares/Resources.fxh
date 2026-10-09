@@ -29,10 +29,7 @@ RTL_TEXTURE(FlarePreview,_RTL_W,_RTL_H)
 RTL_TEXTURE(MomentsPrevious,_RTL_W,_RTL_H)
 RTL_TEXTURE(MomentsCurrent,_RTL_W,_RTL_H)
 RTL_TEXTURE(FilterState,1,1)
-RTL_TEXTURE(DenoiseWorkA,_RTL_W,_RTL_H)
-RTL_TEXTURE(DenoiseWorkB,_RTL_W,_RTL_H)
-RTL_TEXTURE(DenoiseGuide,_RTL_W,_RTL_H)
-RTL_TEXTURE(DenoiseEnergy,1,1)
+RTL_TEXTURE(FilterNext,1,1)
 sampler2D FlareLinearS { Texture=FlareCurrent; MinFilter=LINEAR; MagFilter=LINEAR; MipFilter=POINT; AddressU=CLAMP; AddressV=CLAMP; };
 sampler2D FlarePreviewLinearS { Texture=FlarePreview; MinFilter=LINEAR; MagFilter=LINEAR; MipFilter=POINT; AddressU=CLAMP; AddressV=CLAMP; };
 #undef RTL_TEXTURE
@@ -43,8 +40,6 @@ sampler2D FlarePreviewLinearS { Texture=FlarePreview; MinFilter=LINEAR; MagFilte
 RTL_ATOMIC(AccumR)
 RTL_ATOMIC(AccumG)
 RTL_ATOMIC(AccumB)
-RTL_ATOMIC(PhotonMoment)
-RTL_ATOMIC(PhotonMomentHigh)
 #undef RTL_ATOMIC
 texture2D Counters { Width=8; Height=1; Format=R32I; };
 sampler2D<int> CountersS { Texture=Counters; MinFilter=POINT; MagFilter=POINT; MipFilter=POINT; };
