@@ -9,6 +9,7 @@ parameterised ai slop generated reshade shader for realistic lens flares
 
 ## tips for best use
 - disable all in game bloom and lens effects
+  - if the game doesnt let you, try using [shader toggler](https://github.com/FransBouma/ShaderToggler)
 - use a tonemapper that preserves detail in highlights as best as possible ([renodx](https://github.com/clshortfuse/renodx) can likely help with that)
 - convolution source exposure controls brightness of the bloom and flares
 - enable progressive gathering under sample options for screenshots and let the samples accumulate
@@ -23,5 +24,6 @@ parameterised ai slop generated reshade shader for realistic lens flares
 - better denoising/ preview filters
 
 [based on this paper](https://dl.acm.org/doi/10.1145/2010324.1965003)
+inspired by the amazing lens tracing work of [LandHooman](https://land_hooman.artstation.com/) in samuel krug's [mrenders discord server](https://discord.gg/nXCErDSdgz)
 
 #### support human creation, free palestine
