@@ -15,6 +15,7 @@ parameterised ai slop generated reshade shader for realistic lens flares
 - in preprocessor definitions set `OFB2_APERTURE_SIZE` to a power of 2 that as closely matches your display as possible
   - e.g. at 1080p set it to 1024, at 2160p (4k) set it to 2048
 - dont forget to set your input color space (hdr/srgb) at the top
+- use a lens with a focal length that closely matches your camera fov ([converter](https://basicfreetools.com/fov-visualizer/))
 
 ![SpaceEngine + Forza Horizon 6 demo photos](https://files.catbox.moe/tg0qml.png)
 
