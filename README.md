@@ -7,10 +7,19 @@ parameterised ai slop generated reshade shader for realistic lens flares
 
 # this is not intended to be realtime !!!!
 
+## tips for best use
+- disable all in game bloom and lens effects
+- use a tonemapper that preserves detail in highlights as best as possible ([renodx](https://github.com/clshortfuse/renodx) can likely help with that)
+- convolution source exposure controls brightness of the bloom and flares
+- enable progressive gathering under sample options for screenshots and let the samples accumulate
+- in preprocessor definitions set `OFB2_APERTURE_SIZE` to a power of 2 that as closely matches your display as possible
+  - e.g. at 1080p set it to 1024, at 2160p (4k) set it to 2048
+- dont forget to set your input color space (hdr/srgb) at the top
+
 ![SpaceEngine + Forza Horizon 6 demo photos](https://files.catbox.moe/tg0qml.png)
 
 #### features coming soon maybe
-- more lenses
+- better denoising/ preview filters
 
 [based on this paper](https://dl.acm.org/doi/10.1145/2010324.1965003)
 
